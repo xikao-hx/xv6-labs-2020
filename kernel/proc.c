@@ -291,6 +291,8 @@ fork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
+  np->trace_mask = p->trace_mask;
+
   pid = np->pid;
 
   np->state = RUNNABLE;
@@ -488,6 +490,21 @@ scheduler(void)
       asm volatile("wfi");
     }
   }
+}
+
+int
+procnum(void) 
+{
+  struct proc *p;
+  int num = 0;
+
+  for (p = proc; p < &proc[NPROC]; p ++) {
+    if (p->state != UNUSED) {
+      num ++;
+    }
+  }
+
+  return num;
 }
 
 // Switch to scheduler.  Must hold only p->lock

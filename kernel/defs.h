@@ -63,6 +63,7 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+uint64          freebytes(void);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -94,6 +95,7 @@ struct cpu*     getmycpu(void);
 struct proc*    myproc();
 void            procinit(void);
 void            scheduler(void) __attribute__((noreturn));
+int             procnum(void);
 void            sched(void);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
