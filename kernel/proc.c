@@ -140,14 +140,19 @@ found:
 }
 
 void
-free_kernelphy(pagetable_t pagetable)
+free_kernelphy(pagetable_t pagetable, uint64 kstack, uint64 size)
 {
+  // 不能释放
   uvmunmap(pagetable, UART0, PGSIZE / PGSIZE, 0);
   uvmunmap(pagetable, VIRTIO0, PGSIZE / PGSIZE, 0);
   uvmunmap(pagetable, PLIC, 0x400000 / PGSIZE, 0);
   uvmunmap(pagetable, KERNBASE, ((uint64)etext - KERNBASE) / PGSIZE, 0);
   uvmunmap(pagetable, (uint64)etext, (PHYSTOP - (uint64)etext) / PGSIZE, 0);
   uvmunmap(pagetable, TRAMPOLINE, PGSIZE / PGSIZE, 0);
+  uvmunmap(pagetable, 0, PGROUNDUP(size) / PGSIZE, 0);    // 用户进程自己释放
+
+  // 可以释放
+  uvmunmap(pagetable, kstack, 1, 1);
 }
 
 // free a proc structure and the data hanging from it,
@@ -160,8 +165,8 @@ freeproc(struct proc *p)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
   if (p->kernelpgtbl) {
-    free_kernelphy(p->kernelpgtbl);
-    free_kernelpgtbl(p->kernelpgtbl, p->kstack);
+    free_kernelphy(p->kernelpgtbl, p->kstack, p->sz);
+    free_kernelpgtbl(p->kernelpgtbl);
   }
   p->kernelpgtbl = 0;
   // p->kstack = 0;
@@ -248,6 +253,8 @@ userinit(void)
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
+  ptokvmcopy(p->pagetable, p->kernelpgtbl, 0, p->sz);
+
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -301,6 +308,8 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  ptokvmcopy(np->pagetable, np->kernelpgtbl, 0, np->sz);   // copy
 
   np->parent = p;
 

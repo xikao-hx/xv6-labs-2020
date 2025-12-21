@@ -43,12 +43,21 @@ sys_sbrk(void)
 {
   int addr;
   int n;
+  struct proc *p = myproc();
 
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
+
+  if (addr + n >= PLIC) {
+    return -1;
+  }
+
   if(growproc(n) < 0)
     return -1;
+  
+  ptokvmcopy(p->pagetable, p->kernelpgtbl, addr, addr+n);   // copy
+
   return addr;
 }
 

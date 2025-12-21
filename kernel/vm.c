@@ -326,10 +326,22 @@ freewalk(pagetable_t pagetable)
 }
 
 void
-free_kernelpgtbl(pagetable_t pagetable, uint64 kstack)
+free_kernelpgtbl(pagetable_t pagetable)
 {
-  uvmunmap(pagetable, kstack, 1, 1);
   freewalk(pagetable);
+}
+
+// 将进程页表copy到内核页表
+void 
+ptokvmcopy(pagetable_t proc_pgtbl, pagetable_t kernel_pgtbl, uint64 begin, uint64 size)
+{
+  pte_t *proc_pte, *kernel_pte;
+
+  for (uint64 i = begin; i < size; i += PGSIZE) {
+    proc_pte = walk(proc_pgtbl, i, 0);
+    kernel_pte = walk(kernel_pgtbl, i, 1);  // alloc
+    *kernel_pte = (*proc_pte) & ~PTE_U;
+  }
 }
 
 void 
@@ -453,6 +465,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+  /*
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -470,6 +483,9 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
+  */
+
+  return copyin_new(pagetable, dst, srcva, len);
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -479,6 +495,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+  /*
   uint64 n, va0, pa0;
   int got_null = 0;
 
@@ -513,4 +530,6 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+  */
+  return copyinstr_new(pagetable, dst, srcva, max);
 }
