@@ -319,6 +319,7 @@ freewalk(pagetable_t pagetable)
       freewalk((pagetable_t)child);
       pagetable[i] = 0;
     } else if(pte & PTE_V){
+      printf("freewalk: leaf at index %d, pte=%p\n", i, pte);
       panic("freewalk: leaf");
     }
   }
@@ -337,9 +338,15 @@ ptokvmcopy(pagetable_t proc_pgtbl, pagetable_t kernel_pgtbl, uint64 begin, uint6
 {
   pte_t *proc_pte, *kernel_pte;
 
-  for (uint64 i = begin; i < size; i += PGSIZE) {
+  for (uint64 i = PGROUNDUP(begin); i < size; i += PGSIZE) {
     proc_pte = walk(proc_pgtbl, i, 0);
+    if (proc_pte == 0 || (*proc_pte & PTE_V) == 0) {
+      continue;  // 用户页表中没有映射，跳过
+    }
     kernel_pte = walk(kernel_pgtbl, i, 1);  // alloc
+    if (kernel_pte == 0) {
+      panic("ptokvmcopy: walk failed");
+    }
     *kernel_pte = (*proc_pte) & ~PTE_U;
   }
 }

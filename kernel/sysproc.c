@@ -56,8 +56,15 @@ sys_sbrk(void)
   if(growproc(n) < 0)
     return -1;
   
-  ptokvmcopy(p->pagetable, p->kernelpgtbl, addr, addr+n);   // copy
-
+  if (n > 0) {
+    ptokvmcopy(p->pagetable, p->kernelpgtbl, addr, addr+n);   // copy
+  } else  {
+    for (int j = addr - PGSIZE; j >= addr + n; j -= PGSIZE) {
+      // 如果内存减小，也要释放掉相应的映射
+      uvmunmap(p->kernelpgtbl, j, 1, 0);
+    }
+  }
+  
   return addr;
 }
 
