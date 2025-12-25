@@ -107,6 +107,16 @@ allocproc(void)
 found:
   p->pid = allocpid();
 
+  // set alaram's connect param
+  p->ticks = 0;
+  p->tick_count = 0;
+  p->tick_flag = 0;
+  p->alarm_handler = 0;
+  if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){
+    release(&p->lock);
+    return 0;
+  }
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     release(&p->lock);
@@ -136,11 +146,16 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  if(p->alarm_trapframe)
+    kfree((void*)p->alarm_trapframe);
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+  
+  p->alarm_trapframe = 0;
+
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -150,6 +165,11 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+  p->ticks = 0;
+  p->tick_count = 0;
+  p->tick_flag = 0;
+  p->alarm_handler = 0;
 }
 
 // Create a user page table for a given process,

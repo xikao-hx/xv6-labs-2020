@@ -105,5 +105,7 @@ struct proc {
   char name[16];               // Process name (debugging)
   int ticks;
   int tick_count;
+  int tick_flag;
   void (*alarm_handler)();
+  struct trapframe *alarm_trapframe;
 };
