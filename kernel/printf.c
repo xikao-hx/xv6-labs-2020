@@ -115,12 +115,46 @@ printf(char *fmt, ...)
 }
 
 void
+printpage(pagetable_t pagetable, int layer)
+{
+  if (pagetable == 0)
+    return;
+
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) {
+      uint64 pa = PTE2PA(pte);  // pte是该级页表某一项的值 --> 计算得到的child是下一级页表的物理地址
+
+      // 打印缩进和内容
+      for (int j = 0; j < layer + 1; j++) {
+        printf("..");
+      }
+      printf("%d: pte %p pa %p\n", i, (void*)pte, (void*)pa);
+
+
+      if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) {          // 为了让最后一次递归能打印，所以分开写if，同时这个判断也是终止条件
+        printpage((pagetable_t)PTE2PA(pte), layer + 1);    // 递归查找，layer回溯
+      }
+    }
+  }
+}
+
+// 打印
+void
+vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", (void*)pagetable);
+  printpage(pagetable, 0);
+}
+
+void
 panic(char *s)
 {
   pr.locking = 0;
   printf("panic: ");
   printf(s);
   printf("\n");
+  vmprint(myproc()->pagetable);
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;

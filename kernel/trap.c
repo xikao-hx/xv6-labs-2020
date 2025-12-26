@@ -69,11 +69,12 @@ usertrap(void)
     // ok
   } else if (r_scause() == 13 || r_scause() == 15) {
     
+    struct proc *p = myproc();
     uint64 va = r_stval();
-    pagetable_t pagetable = myproc()->pagetable;
+    pagetable_t pagetable = p->pagetable;
     char *mem;
     
-    if (va < myproc()->sz) {
+    if (PGROUNDUP(p->trapframe->sp) - 1 < va && va < p->sz) {
       va = PGROUNDDOWN(va);
       mem = kalloc();
       if(mem != 0){
@@ -83,11 +84,11 @@ usertrap(void)
           p->killed = 1;
         }
       } else {
-        printf("kalloc() err!\n");
+        printf("trapinithart: kalloc() err!\n");
         p->killed = 1;
       } 
     } else {
-      printf("vaddr out of proc's total size!\n");
+      printf("trapinithart: vaddr out of proc's total size!\n");
       p->killed = 1;
     }
   } else {
