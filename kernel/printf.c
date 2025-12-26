@@ -148,13 +148,28 @@ vmprint(pagetable_t pagetable)
 }
 
 void
+backtrace(void) 
+{
+  uint64 fp = r_fp();;
+  printf("backtrace:\n");
+
+  while(PGROUNDUP(fp) - PGROUNDDOWN(fp)) {
+    uint64 ret_addr = *(uint64*)(fp - 8);
+    printf("%p\n", ret_addr);
+    fp = *(uint64*)(fp - 16);
+  }
+}
+
+
+void
 panic(char *s)
 {
   pr.locking = 0;
   printf("panic: ");
   printf(s);
   printf("\n");
-  vmprint(myproc()->pagetable);
+  //vmprint(myproc()->pagetable);
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -166,3 +181,4 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+

@@ -74,7 +74,7 @@ usertrap(void)
     pagetable_t pagetable = p->pagetable;
     char *mem;
     
-    if (PGROUNDUP(p->trapframe->sp) - 1 < va && va < p->sz) {
+    if (va < p->sz) {
       va = PGROUNDDOWN(va);
       mem = kalloc();
       if(mem != 0){
