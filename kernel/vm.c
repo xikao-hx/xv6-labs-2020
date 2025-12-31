@@ -5,7 +5,9 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-
+#include "spinlock.h"
+#include "proc.h"
+#include "defs.h"
 /*
  * the kernel's page table.
  */
@@ -311,28 +313,81 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+    
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
-    }
-  }
-  return 0;
 
- err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
-  return -1;
+    // 仅对可写页面设置COW标记
+    if(flags & PTE_W) {
+      // 禁用写并设置COW Fork标记
+      flags = (flags | PTE_COW) & ~PTE_W;
+      *pte = PA2PTE(pa) | flags;
+    }
+
+    if(mappages(new, i, PGSIZE, pa, flags) != 0) {
+      uvmunmap(new, 0, i / PGSIZE, 1);
+      return -1;
+    }
+    kaddmapcnt((void *)PGROUNDDOWN(pa));     // 增加映射
+  }
+
+  return 0;
+}
+
+// 得到子进程的虚拟地址，然后进行分配
+void * 
+uvcowkalloc(pagetable_t pagetable, uint64 va) {
+
+  if(va % PGSIZE != 0)
+    return 0;
+
+  uint64 pa = walkaddr(pagetable, va);
+  if (pa == 0) {
+    return 0;
+  }
+  
+  pte_t *pte = walk(pagetable, va, 0);
+  if (kgetmapcnt((void *)pa) == 1) {
+    *pte |= PTE_W;
+    *pte &= ~PTE_COW;
+    return (void *)pa;
+  } else {
+    char *mem = kalloc();
+    if (mem == 0) {
+      printf("uvcowkalloc: kalloc failed\n");
+      return 0;
+    } 
+    
+    memmove(mem, (char*)pa, PGSIZE);   // 进行拷贝
+    *pte &= ~PTE_V;
+    if(mappages(pagetable, va, PGSIZE, (uint64)mem, (PTE_FLAGS(*pte) | PTE_W) & ~PTE_COW) != 0) {   // 完成映射
+      kfree(mem);
+      *pte |= PTE_V;   // 恢复
+      printf("uvcowkalloc: mappages failed\n");
+      return 0;
+    }
+
+    kfree((void *)PGROUNDDOWN(pa));     
+    
+    return (void *)mem;
+  } 
+}
+
+// 判断是不是cow页表项
+int 
+uvcowpage(pagetable_t pagetable, uint64 va) {
+  pte_t *pte;
+
+  if(va >= MAXVA) return -1;   // 这里必须加上，不加上测试的时候出错
+  if ((pte = walk(pagetable, va, 0)) == 0) return -1;  
+  if ((*pte & PTE_V) == 0) return -1;
+  return *pte & PTE_COW? 0: -1;
 }
 
 // mark a PTE invalid for user access.
@@ -359,6 +414,11 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
+
+    if (!uvcowpage(pagetable, va0)) {
+      pa0 = (uint64)uvcowkalloc(pagetable, va0);   // 更新物理地址
+    }
+     
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (dstva - va0);

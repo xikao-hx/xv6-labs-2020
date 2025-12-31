@@ -8,6 +8,7 @@
 #include "spinlock.h"
 #include "riscv.h"
 #include "defs.h"
+#include "proc.h"
 
 void freerange(void *pa_start, void *pa_end);
 
@@ -23,9 +24,15 @@ struct {
   struct run *freelist;
 } kmem;
 
+struct {
+  struct spinlock lock;
+  char quota[PHYSTOP / PGSIZE];
+} kmapcnt;
+
 void
 kinit()
 {
+  initlock(&kmapcnt.lock, "kmapcnt");
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
 }
@@ -35,8 +42,26 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
+    acquire(&kmapcnt.lock);
+    kmapcnt.quota[(uint64)p / PGSIZE] = 1; 
+    release(&kmapcnt.lock);
     kfree(p);
+  }
+}
+
+void kaddmapcnt(void *pa) {
+
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    return ;
+
+  acquire(&kmapcnt.lock);
+  kmapcnt.quota[(uint64)pa / PGSIZE] ++; 
+  release(&kmapcnt.lock);
+}
+
+int kgetmapcnt(void *pa) {
+  return kmapcnt.quota[(uint64)pa / PGSIZE];
 }
 
 // Free the page of physical memory pointed at by v,
@@ -51,15 +76,23 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
+  acquire(&kmapcnt.lock);
+  
+  if(--kmapcnt.quota[(uint64)pa / PGSIZE] == 0) {
+    release(&kmapcnt.lock);
 
-  r = (struct run*)pa;
+    r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+    // Fill with junk to catch dangling refs.
+    memset(pa, 1, PGSIZE);
+
+    acquire(&kmem.lock);
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+    release(&kmem.lock);
+  } else {
+    release(&kmapcnt.lock);
+  }
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -72,8 +105,12 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+    acquire(&kmapcnt.lock);
+    kmapcnt.quota[(uint64)r / PGSIZE] = 1; 
+    release(&kmapcnt.lock);
+  }
   release(&kmem.lock);
 
   if(r)
