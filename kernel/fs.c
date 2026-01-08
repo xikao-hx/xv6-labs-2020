@@ -471,16 +471,18 @@ itrunc(struct inode *ip)
     bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
     a = (uint*)bp->data;
     for(j = 0; j < NINDIRECT; j++){
-      bp1 = bread(ip->dev, a[j]);
-      a1 = (uint*)bp1->data;
-      for (k = 0; k < NINDIRECT; k ++) {
-        if (a1[k]) {
-          bfree(ip->dev, a1[k]);
+      if (a[j]) {
+        bp1 = bread(ip->dev, a[j]);
+        a1 = (uint*)bp1->data;
+        for (k = 0; k < NINDIRECT; k ++) {
+          if (a1[k]) {
+            bfree(ip->dev, a1[k]);
+          }
         }
-      }
 
-      brelse(bp1);
-      bfree(ip->dev, a[j]);
+        brelse(bp1);
+        bfree(ip->dev, a[j]);
+      }
     }
 
     brelse(bp);
