@@ -22,6 +22,14 @@
 #include "file.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
+
+#define MASK_8BITS   0xFF      // 8 bits, 256 范围
+#define SHIFT_LEVEL1 8         // 第一级偏移 8 位
+#define SHIFT_LEVEL2 0         // 第二级偏移 0 位
+
+// 提取第几级的值 (level=0 或 1)
+#define BN_LEVEL(level, value) (((value) >> (SHIFT_LEVEL1 * (level))) & MASK_8BITS)
+
 // there should be one superblock per disk device, but we run with
 // only one device
 struct superblock sb; 
@@ -380,6 +388,7 @@ bmap(struct inode *ip, uint bn)
   uint addr, *a;
   struct buf *bp;
 
+  // 分配11个直接块
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr = balloc(ip->dev);
@@ -387,6 +396,7 @@ bmap(struct inode *ip, uint bn)
   }
   bn -= NDIRECT;
 
+  // 分配一级间接块
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT]) == 0)
@@ -401,6 +411,29 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
 
+  bn -= NINDIRECT;
+  if (bn < NDINDIRECT) {
+    // 分配一级间接块
+    if ((addr = ip->addrs[NDIRECT+1]) == 0)
+        ip->addrs[NDIRECT+1] = addr = balloc(ip->dev);
+
+    // 分配二级间接块，并一级间接块存储二级间接块地址，分配最终的块
+    for (int level = 1; level >= 0; level --) {
+
+      bp = bread(ip->dev, addr);
+      a = (uint*)bp->data;
+
+      uint indirect_bn = BN_LEVEL(level, bn);
+      if ((addr = a[indirect_bn]) == 0) {
+        a[indirect_bn] = addr = balloc(ip->dev);
+        log_write(bp);
+      }
+      brelse(bp);
+    }
+
+    return addr;
+  }
+
   panic("bmap: out of range");
 }
 
@@ -409,7 +442,7 @@ bmap(struct inode *ip, uint bn)
 void
 itrunc(struct inode *ip)
 {
-  int i, j;
+  int i, j, k;
   struct buf *bp;
   uint *a;
 
@@ -430,6 +463,29 @@ itrunc(struct inode *ip)
     brelse(bp);
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
+  }
+
+  struct buf *bp1;
+  uint *a1;
+  if (ip->addrs[NDIRECT+1]) {
+    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
+    a = (uint*)bp->data;
+    for(j = 0; j < NINDIRECT; j++){
+      bp1 = bread(ip->dev, a[j]);
+      a1 = (uint*)bp1->data;
+      for (k = 0; k < NINDIRECT; k ++) {
+        if (a1[k]) {
+          bfree(ip->dev, a1[k]);
+        }
+      }
+
+      brelse(bp1);
+      bfree(ip->dev, a[j]);
+    }
+
+    brelse(bp);
+    bfree(ip->dev, ip->addrs[NDIRECT+1]);
+    ip->addrs[NDIRECT+1] = 0;
   }
 
   ip->size = 0;
