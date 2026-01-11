@@ -67,6 +67,16 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+#ifdef LAB_MMAP
+  } else if (r_scause() == 13 || r_scause() == 15) {
+    uint64 va = r_stval();
+
+    if (PGROUNDDOWN(p->trapframe->sp) - 1 < va && va < p->sz) {
+      if (mmap_handler(va, r_scause()) != 0) p->killed = 1;
+    } else {
+      p->killed = 1;
+    }
+#endif
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
