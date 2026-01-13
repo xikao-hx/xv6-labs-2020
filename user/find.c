@@ -3,6 +3,8 @@
 #include "user/user.h"
 #include "kernel/fs.h"
 
+extern int match(char*, char*);
+
 void
 find(char *path, char *filename)
 {
@@ -47,8 +49,11 @@ find(char *path, char *filename)
       
       if (st.type == T_DIR && strcmp(p, ".") != 0 && strcmp(p, "..") != 0) {
         find(path, filename);
-      } else if (strcmp(p, filename) == 0) {
+      } else if (strcmp(filename, p) == 0){
         printf("%s\n", buf);
+        // if (match(filename, p)) {
+        //   printf("%s\n", buf);
+        // }
       }
     }
   }
