@@ -37,9 +37,9 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
 
-ifeq ($(LAB),pgtbl)
+# ifeq ($(LAB),pgtbl)
 OBJS += $K/vmcopyin.o
-endif
+# endif
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -154,15 +154,10 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_sleep\
-	$U/_pingpong\
-	$U/_primes\
 	$U/_find\
 	$U/_xargs\
 	$U/_trace\
 	$U/_sysinfotest\
-	$U/_uptime\
-
 
 ifeq ($(LAB),syscall)
 UPROGS += \
