@@ -150,7 +150,7 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   if (p->kpagetable)
-    proc_freekpagetable(p->kpagetable, p->kstack);
+    proc_freekpagetable(p->kpagetable, p->kstack, p->sz);
 
   p->kpagetable = 0;
   p->kstack = 0;
@@ -223,9 +223,10 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 }
 
 void
-proc_freekpagetable(pagetable_t pagetable, uint64 kstack)
+proc_freekpagetable(pagetable_t pagetable, uint64 kstack, uint64 sz)
 {
   ukvmunmap(pagetable);
+  uvmunmap(pagetable, 0, PGROUNDUP(sz) / PGSIZE, 0);
   uvmunmap(pagetable, kstack, 1, 1);
   uvmfree(pagetable, 0);
 }
@@ -259,10 +260,10 @@ userinit(void)
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
-
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
+  upg2ukpg(p->pagetable, p->kpagetable, 0, p->sz);
   p->state = RUNNABLE;
 
   release(&p->lock);
@@ -329,6 +330,8 @@ fork(void)
   np->trace_mask = p->trace_mask;
   pid = np->pid;
 
+  upg2ukpg(np->pagetable, np->kpagetable, 0, np->sz);
+  
   np->state = RUNNABLE;
 
   release(&np->lock);

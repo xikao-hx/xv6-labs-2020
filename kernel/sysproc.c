@@ -44,12 +44,25 @@ sys_sbrk(void)
 {
   int addr;
   int n;
+  struct proc *p = myproc();
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
+  addr = p->sz;
+
+  if ((addr + n) >= PLIC) {
+    return -1;
+  }
+
   if(growproc(n) < 0)
     return -1;
+
+  if (n > 0) {
+    upg2ukpg(p->pagetable, p->kpagetable, addr, addr + n);
+  } else { 
+    ukvmdealloc(p->kpagetable, addr, addr + n, 0);
+  }
+
   return addr;
 }
 

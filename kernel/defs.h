@@ -81,6 +81,7 @@ int             pipewrite(struct pipe*, uint64, int);
 void            printf(char*, ...);
 void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
+void            vmprint(pagetable_t pagetable);
 
 // proc.c
 int             cpuid(void);
@@ -106,7 +107,7 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 int             proc_num(void);
-void            proc_freekpagetable(pagetable_t pagetable, uint64 kstack);
+void            proc_freekpagetable(pagetable_t pagetable, uint64 kstack, uint64 sz);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -178,6 +179,8 @@ void            ukvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, 
 pagetable_t     ukvminit(void);
 void            ukvmunmap(pagetable_t pagetable);
 void            ukvminithart(pagetable_t pagetable);
+void            upg2ukpg(pagetable_t u_pagetable, pagetable_t k_pagetable, uint64 begin_addr, uint64 end_addr);
+uint64          ukvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int alloc);
 
 // plic.c
 void            plicinit(void);
@@ -189,6 +192,17 @@ void            plic_complete(int);
 void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
+
+// vmcopyin.c
+int copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len);
+int copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max);
+
+// stats.c
+void            statsinit(void);
+void            statsinc(void);
+
+// sprintf.c
+int             snprintf(char*, int, char*, ...);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

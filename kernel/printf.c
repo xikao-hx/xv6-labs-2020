@@ -115,12 +115,57 @@ printf(char *fmt, ...)
 }
 
 void
+printpage(pagetable_t pagetable, int layer)
+{
+  if (pagetable == 0)
+    return;
+
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) {
+      uint64 pa = PTE2PA(pte);  
+
+      for (int j = 0; j < layer + 1; j++) {
+        printf("..");
+      }
+      printf("%d: pte %p pa %p\n", i, (void*)pte, (void*)pa);
+
+
+      if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) {          
+        printpage((pagetable_t)PTE2PA(pte), layer + 1);   
+      }
+    }
+  }
+}
+
+void
+vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", (void*)pagetable);
+  printpage(pagetable, 0);
+}
+
+void
+backtrace(void) 
+{
+  uint64 fp = r_fp();;
+  printf("backtrace:\n");
+
+  while((PGROUNDUP(fp) - PGROUNDDOWN(fp)) == PGSIZE) {
+    uint64 ret_addr = *(uint64*)(fp - 8);
+    printf("%p\n", ret_addr);
+    fp = *(uint64*)(fp - 16);
+  }
+}
+
+void
 panic(char *s)
 {
   pr.locking = 0;
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace(); 
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;

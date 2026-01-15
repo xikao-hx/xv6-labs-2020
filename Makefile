@@ -37,9 +37,17 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
 
-# ifeq ($(LAB),pgtbl)
+LAB = pgtbl
+
+ifeq ($(LAB),pgtbl)
 OBJS += $K/vmcopyin.o
-# endif
+endif
+
+ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
+OBJS += \
+	$K/stats.o\
+	$K/sprintf.o
+endif
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -106,6 +114,10 @@ tags: $(OBJS) _init
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
+ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
+ULIB += $U/statistics.o
+endif
+
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
 	$(OBJDUMP) -S $@ > $*.asm
@@ -154,10 +166,11 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_find\
-	$U/_xargs\
-	$U/_trace\
-	$U/_sysinfotest\
+
+ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
+UPROGS += \
+	$U/_stats
+endif
 
 ifeq ($(LAB),syscall)
 UPROGS += \
