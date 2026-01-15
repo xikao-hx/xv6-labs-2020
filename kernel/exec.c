@@ -121,9 +121,9 @@ exec(char *path, char **argv)
     uvmunmap(p->kpagetable, 0, PGROUNDUP(oldsz) / PGSIZE, 0);
   upg2ukpg(p->pagetable, p->kpagetable, 0, sz);
 
-  if (p->pid == 1) {
-    vmprint(p->pagetable);
-  }
+  // if (p->pid == 1) {
+  //   vmprint(p->pagetable);
+  // }
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
