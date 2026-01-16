@@ -181,6 +181,8 @@ void            ukvmunmap(pagetable_t pagetable);
 void            ukvminithart(pagetable_t pagetable);
 void            upg2ukpg(pagetable_t u_pagetable, pagetable_t k_pagetable, uint64 begin_addr, uint64 end_addr);
 uint64          ukvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int alloc);
+int             uvmlazymalloc(pagetable_t pagetable, uint64 va);
+pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc);
 
 // plic.c
 void            plicinit(void);

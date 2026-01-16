@@ -68,6 +68,19 @@ int
 argaddr(int n, uint64 *ip)
 {
   *ip = argraw(n);
+  uint64 va = *ip;
+  struct proc *p = myproc();
+  pagetable_t pagetable = p->pagetable;
+
+  if (walkaddr(pagetable, va) == 0) {
+    if (PGROUNDUP(p->trapframe->sp) - 1 < va && va < p->sz) {
+      if (uvmlazymalloc(pagetable, va) != 0) {
+        // printf("argaddr: uvlazymalloc fail\n");
+        return -1;
+      }
+    }
+  }
+
   return 0;
 }
 

@@ -167,6 +167,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_trace\
+	$U/_lazytests\
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \

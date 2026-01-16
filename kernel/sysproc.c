@@ -45,6 +45,7 @@ sys_sbrk(void)
   int addr;
   int n;
   struct proc *p = myproc();
+  int sz = p->sz;
 
   if(argint(0, &n) < 0)
     return -1;
@@ -54,14 +55,23 @@ sys_sbrk(void)
     return -1;
   }
 
-  if(growproc(n) < 0)
-    return -1;
-
-  if (n > 0) {
-    upg2ukpg(p->pagetable, p->kpagetable, addr, addr + n);
-  } else { 
+  if (n >= 0) {
+    p->sz += n;
+  } else if ((addr + n) > 0) {
+    sz = uvmdealloc(p->pagetable, addr, addr + n);
     ukvmdealloc(p->kpagetable, addr, addr + n, 0);
+    p->sz = sz;
+  } else {
+    return -1;
   }
+  // if(growproc(n) < 0)
+  //   return -1;
+
+  // if (n > 0) {
+  //   upg2ukpg(p->pagetable, p->kpagetable, addr, addr + n);
+  // } else { 
+  //   ukvmdealloc(p->kpagetable, addr, addr + n, 0);
+  // }
 
   return addr;
 }

@@ -44,6 +44,7 @@ usertrap(void)
   // send interrupts and exceptions to kerneltrap(),
   // since we're now in the kernel.
   w_stvec((uint64)kernelvec);
+  // ukvminithart(myproc()->kpagetable);  // ← 关键！
 
   struct proc *p = myproc();
   
@@ -67,6 +68,20 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 13 || r_scause() == 15) {
+    struct proc *p = myproc();
+    uint64 va = r_stval();
+
+    // printf("va: %p\n", va);
+    if (PGROUNDUP(p->trapframe->sp) - 1 < va && va < p->sz) {
+      if (uvmlazymalloc(p->pagetable, va) != 0) {
+        // printf("usertrap(): uvmlazymalloc\n");
+        p->killed = 1;
+      }
+    } else {
+      printf("usertrap(): addr is illegal\n");
+      p->killed = 1;
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

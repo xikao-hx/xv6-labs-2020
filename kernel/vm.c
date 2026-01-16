@@ -216,9 +216,11 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+      // panic("uvmunmap: walk");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      // panic("uvmunmap: not mapped");
+      continue;
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -297,6 +299,41 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   return newsz;
 }
 
+int
+uvmlazymalloc(pagetable_t pagetable, uint64 va)
+{
+  struct proc *p = myproc();
+  char *mem;
+
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte != 0 && (*pte & PTE_V)) {
+    return 0;   // 已经映射，直接返回成功
+  }
+
+  va = PGROUNDDOWN(va);
+  mem = kalloc();
+  if(mem == 0){
+    // printf("uvmlazymalloc: kalloc fail\n");
+    return -1;
+  }
+  memset(mem, 0, PGSIZE);
+  if(mappages(pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+    // printf("uvmlazymalloc: mappages fail\n");
+    kfree(mem);
+    return -1;
+  }
+
+  upg2ukpg(p->pagetable, p->kpagetable, va, va + PGSIZE);
+  // if(mappages(p->kpagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R) != 0){
+  //   uvmunmap(pagetable, va, PGSIZE / PGSIZE, 1);
+  //   printf("uvmalloc: mappages fail\n");
+  //   kfree(mem);
+  //   return -1;
+  // }
+
+  return 0;
+}
+
 // Deallocate user pages to bring the process size from oldsz to
 // newsz.  oldsz and newsz need not be page-aligned, nor does newsz
 // need to be less than oldsz.  oldsz can be larger than the actual
@@ -335,7 +372,8 @@ upg2ukpg(pagetable_t u_pagetable, pagetable_t k_pagetable, uint64 begin_addr, ui
   for (uint64 addr = begin_addr; addr < end_addr; addr += PGSIZE) {
     pte_t *u_pte = walk(u_pagetable, addr, 0);
     if (u_pte == 0 || (*u_pte & PTE_V) == 0) {
-      panic("upg2ukpg: walk err1!\n");
+      // panic("upg2ukpg: walk err1!\n");
+      continue;
     }
     pte_t *k_pte = walk(k_pagetable, addr, 1);
     if (k_pte == 0) {
@@ -390,9 +428,11 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      // panic("uvmcopy: pte should exist");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      // panic("uvmcopy: page not present");
+      continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
