@@ -51,7 +51,7 @@ sys_sbrk(void)
     return -1;
   addr = p->sz;
 
-  if ((addr + n) >= PLIC) {
+  if ((addr + n) > PLIC) {
     return -1;
   }
 

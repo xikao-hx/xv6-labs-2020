@@ -305,12 +305,16 @@ uvmlazymalloc(pagetable_t pagetable, uint64 va)
   struct proc *p = myproc();
   char *mem;
 
+  if ((va % PGSIZE) != 0) {
+    printf("uvmlazymalloc: va must be page-aligned\n");
+    return -1;
+  }
+
   pte_t *pte = walk(pagetable, va, 0);
   if(pte != 0 && (*pte & PTE_V)) {
     return 0;   // 已经映射，直接返回成功
   }
 
-  va = PGROUNDDOWN(va);
   mem = kalloc();
   if(mem == 0){
     // printf("uvmlazymalloc: kalloc fail\n");
@@ -332,6 +336,64 @@ uvmlazymalloc(pagetable_t pagetable, uint64 va)
   // }
 
   return 0;
+}
+
+void *  
+uvmcowmalloc(pagetable_t pagetable, uint64 va) 
+{
+  struct proc *p = myproc();
+
+  if ((va % PGSIZE) != 0) {
+    printf("uvmcowmalloc: va must be page-aliged\n");
+    return 0;
+  }
+
+  uint64 pa = walkaddr(pagetable, va);
+  if (pa == 0) {
+    return 0;
+  }  
+  
+  pte_t *pte = walk(pagetable, va, 0);
+  if (pte == 0) {
+    return 0;
+  }
+
+  if (kgetquota((void *)pa) == 1) {
+    *pte |= PTE_W;
+    *pte &= ~PTE_COW;
+
+    upg2ukpg(p->pagetable, p->kpagetable, va, va + PGSIZE);
+
+    return (void *)pa;
+  } else {
+    char *mem = (char *)kalloc();
+    if (mem == 0) {
+      return 0;
+    }
+
+    memmove(mem, (char *)pa, PGSIZE);
+    *pte &= ~PTE_V;
+    if (mappages(pagetable, va, PGSIZE, (uint64)mem, (PTE_FLAGS(*pte) | PTE_W) & ~PTE_COW) != 0) {
+      kfree((void *)mem);
+      *pte |= PTE_V;
+      return 0;
+    }
+
+    upg2ukpg(p->pagetable, p->kpagetable, va, va + PGSIZE);
+
+    kfree((void *)pa);
+
+    return (void *)mem;
+  }
+}
+
+int uvmcowpage(pagetable_t pagetable, uint64 va)
+{
+  if (va >= MAXVA) return -1;
+  pte_t *pte = walk(pagetable, va, 0);
+  if (pte == 0) return -1;
+  if ((*pte & PTE_V) == 0) return -1;
+  return *pte & PTE_COW? 0: -1;
 }
 
 // Deallocate user pages to bring the process size from oldsz to
@@ -424,7 +486,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -435,13 +496,23 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+
+    // 设置权限
+    if (flags & PTE_W) {
+      flags = (flags | PTE_COW) & ~PTE_W;   
+      *pte = PA2PTE(pa) | flags;
+    }
+
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
+      uvmunmap(new, 0, i / PGSIZE, 1);
       goto err;
     }
+
+    kaddquota((void *)pa);
   }
   return 0;
 
@@ -474,8 +545,14 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
+
+    if (uvmcowpage(pagetable, va0) == 0) {
+      pa0 = (uint64)uvmcowmalloc(pagetable, va0);
+    }
+
     if(pa0 == 0)
       return -1;
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;

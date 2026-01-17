@@ -64,6 +64,8 @@ void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
 uint64          freemem(void);
+void            kaddquota(void *pa);
+int             kgetquota(void *pa);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -183,6 +185,8 @@ void            upg2ukpg(pagetable_t u_pagetable, pagetable_t k_pagetable, uint6
 uint64          ukvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int alloc);
 int             uvmlazymalloc(pagetable_t pagetable, uint64 va);
 pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc);
+void *          uvmcowmalloc(pagetable_t pagetable, uint64 va);
+int             uvmcowpage(pagetable_t pagetable, uint64 va);
 
 // plic.c
 void            plicinit(void);

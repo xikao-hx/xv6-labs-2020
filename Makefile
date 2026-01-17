@@ -168,6 +168,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_trace\
 	$U/_lazytests\
+	$U/_cowtest\
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \

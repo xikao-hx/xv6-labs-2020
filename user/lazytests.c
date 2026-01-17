@@ -7,8 +7,9 @@
 #include "kernel/syscall.h"
 #include "kernel/memlayout.h"
 #include "kernel/riscv.h"
-
-#define REGION_SZ (1024 * 1024 * 1024)
+// 16777216
+#define REGION_SZ (201310000)
+// #define REGION_SZ (1024 * 1024 * 1024)
 // 1073741824
 // 201326592  -->  由于进程内核页表的限制，导致不能进程的地址空间不能太大，否则会覆盖内核地址空间，导致出现错误
 void
