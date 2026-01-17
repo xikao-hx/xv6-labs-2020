@@ -71,7 +71,7 @@ usertrap(void)
     struct proc *p = myproc();
     uint64 va = r_stval();
 
-    if (va > p->sz || uvcowpage(p->pagetable, va) != 0 || uvcowkalloc(p->pagetable, (va)) == 0)  {
+    if (va > p->sz || uvcowpage(p->pagetable, va) != 0 || uvcowkalloc(p->pagetable, PGROUNDDOWN(va)) == 0)  {
       printf("usertrap(): not cow or not memory\n");
       p->killed = 1;
     }

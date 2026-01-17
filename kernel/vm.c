@@ -344,8 +344,10 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 void * 
 uvcowkalloc(pagetable_t pagetable, uint64 va) {
 
-  if(va % PGSIZE != 0)
+  if(va % PGSIZE != 0) {
+    printf("uvmcowkalloc: va must be page-aligned\n");
     return 0;
+  }
 
   uint64 pa = walkaddr(pagetable, va);
   if (pa == 0) {
@@ -373,7 +375,7 @@ uvcowkalloc(pagetable_t pagetable, uint64 va) {
       return 0;
     }
 
-    kfree((void *)PGROUNDDOWN(pa));     
+    kfree((void *)pa);     
     
     return (void *)mem;
   } 
