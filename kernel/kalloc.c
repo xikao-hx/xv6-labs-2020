@@ -77,18 +77,20 @@ kfree(void *pa)
     panic("kfree");
 
   acquire(&kmapcnt.lock);
-  
-  if(--kmapcnt.quota[(uint64)pa / PGSIZE] == 0) {
-    release(&kmapcnt.lock);
+  int refcnt = --kmapcnt.quota[(uint64)pa / PGSIZE];
 
+  if(refcnt == 0) {
+    acquire(&kmem.lock);
     r = (struct run*)pa;
 
+    release(&kmapcnt.lock);
+    
     // Fill with junk to catch dangling refs.
     memset(pa, 1, PGSIZE);
-
-    acquire(&kmem.lock);
+    
     r->next = kmem.freelist;
     kmem.freelist = r;
+    
     release(&kmem.lock);
   } else {
     release(&kmapcnt.lock);
@@ -107,13 +109,17 @@ kalloc(void)
   r = kmem.freelist;
   if(r) {
     kmem.freelist = r->next;
-    acquire(&kmapcnt.lock);
-    kmapcnt.quota[(uint64)r / PGSIZE] = 1; 
-    release(&kmapcnt.lock);
   }
   release(&kmem.lock);
-
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
+  
+  if(r) {
+    // 分配成功后设置引用计数
+    acquire(&kmapcnt.lock);
+    kmapcnt.quota[(uint64)r / PGSIZE] = 1;
+    release(&kmapcnt.lock);
+    
+    memset((char*)r, 5, PGSIZE);
+  }
+  
   return (void*)r;
 }
