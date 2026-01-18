@@ -21,7 +21,7 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+} kmem[NCPU];
 
 struct {
   struct spinlock lock;
@@ -31,7 +31,11 @@ struct {
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  for (int i = 0; i < NCPU; i ++) {
+    char name[10];
+    snprintf(name, sizeof(name), "kmem_%d", i); 
+    initlock(&kmem[i].lock, name);
+  }
   initlock(&cow_map.lock, "cow_map");
   freerange(end, (void*)PHYSTOP);
 }
@@ -75,11 +79,14 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  push_off();
+  int id = cpuid();
+  
   acquire(&cow_map.lock);
   int cnt = --cow_map.cow_quota[(uint64)pa / PGSIZE];
-  
+
   if (cnt == 0) {
-    acquire(&kmem.lock);
+    acquire(&kmem[id].lock);
     r = (struct run*)pa;
 
     release(&cow_map.lock);
@@ -87,12 +94,14 @@ kfree(void *pa)
     // Fill with junk to catch dangling refs.
     memset(pa, 1, PGSIZE);
 
-    r->next = kmem.freelist;
-    kmem.freelist = r;
-    release(&kmem.lock);
+    r->next = kmem[id].freelist;
+    kmem[id].freelist = r;
+    release(&kmem[id].lock);
   } else{
     release(&cow_map.lock);
   }
+
+  pop_off();
 
   if (cnt < 0) {
     cow_map.cow_quota[(uint64)pa / PGSIZE] = 0;
@@ -107,11 +116,29 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+  push_off();
+  int id = cpuid();
+
+  acquire(&kmem[id].lock);
+  r = kmem[id].freelist;
+  if(r) {
+    kmem[id].freelist = r->next;
+  } else {
+    for (int n_id = 0; n_id < NCPU; n_id ++) {
+      if (n_id == id) continue;
+      acquire(&kmem[n_id].lock);
+      r = kmem[n_id].freelist;
+      if (r) {
+        kmem[n_id].freelist = r->next;
+        release(&kmem[n_id].lock);
+        break;
+      }
+      release(&kmem[n_id].lock);
+    }
+  }
+  release(&kmem[id].lock);
+
+  pop_off();
 
   if(r) {
     acquire(&cow_map.lock);
@@ -130,10 +157,12 @@ freemem(void)
   struct run *r;
   int num = 0;
 
-  r = kmem.freelist;
-  while (r) {
-    num ++;
-    r = r->next;
+  for (int id = 0; id < NCPU; id ++) {
+    r = kmem[id].freelist;
+    while (r) {
+      num ++;
+      r = r->next;
+    }
   }
 
   return num * PGSIZE;

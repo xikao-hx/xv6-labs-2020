@@ -37,8 +37,6 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
 
-# LAB = pgtbl
-
 # ifeq ($(LAB),pgtbl)
 OBJS += $K/vmcopyin.o
 # endif
@@ -79,7 +77,7 @@ CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb
 
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
-CFLAGS += -DSOL_$(LABUPPER)
+CFLAGS += -DSOL_$(LABUPPER) -DLAB_$(LABUPPER)
 endif
 
 CFLAGS += -MD
@@ -166,9 +164,8 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_trace\
-	$U/_lazytests\
 	$U/_cowtest\
+	$U/_kalloctest\
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
