@@ -165,7 +165,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_cowtest\
-	$U/_kalloctest\
+	$U/_bcachetest\
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
