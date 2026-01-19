@@ -21,6 +21,14 @@
 #include "buf.h"
 #include "file.h"
 
+#define MASK_8BITS   0xFF      // 8 bits, 256 范围
+#define SHIFT_LEVEL1 8         // 第一级偏移 8 位
+#define SHIFT_LEVEL2 0         // 第二级偏移 0 位
+
+// 提取第几级的值 (level=0 或 1)
+#define BN_LEVEL(level, value) (((value) >> (SHIFT_LEVEL1 * (level))) & MASK_8BITS)
+#define INDEX_LEVEL 2
+
 #define min(a, b) ((a) < (b) ? (a) : (b))
 // there should be one superblock per disk device, but we run with
 // only one device
@@ -400,7 +408,26 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
+  bn -= NINDIRECT;
 
+  if (bn < N2INDIRECT) {
+    if ((addr = ip->addrs[NDIRECT+1]) == 0) 
+      ip->addrs[NDIRECT+1] = addr = balloc(ip->dev);  // 分配一级块的块号
+
+    for (int level = 1; level >= 0; level --) {
+      bp = bread(ip->dev, addr);
+      a = (uint*)bp->data;
+      uint index = BN_LEVEL(level, bn);
+      if((addr = a[index]) == 0) {
+        a[index] = addr = balloc(ip->dev);   // 填充一级块和二级块的内容
+        log_write(bp);
+      }
+      brelse(bp);
+    }
+      
+    return addr;
+  }
+ 
   panic("bmap: out of range");
 }
 
@@ -430,6 +457,27 @@ itrunc(struct inode *ip)
     brelse(bp);
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
+  }
+
+  struct buf *bp1;
+  uint *a1;
+  if(ip->addrs[NDIRECT+1]) {
+    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
+    a = (uint*)bp->data;
+    for (int i = 0; i < NDIRECT; i ++) {
+      bp1 = bread(ip->dev, a[i]);
+      a1 = (uint*)bp1->data;
+      for (int j = 0; j < NDIRECT; j ++) {
+        if (a1[j])
+          bfree(ip->dev, a1[j]);
+      }
+      brelse(bp1);
+      bfree(ip->dev, a[i]);
+    }
+
+    brelse(bp);
+    bfree(ip->dev, ip->addrs[NDIRECT+1]);
+    ip->addrs[NDIRECT+1] = 0;
   }
 
   ip->size = 0;
