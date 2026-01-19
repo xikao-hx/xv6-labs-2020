@@ -164,7 +164,12 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+<<<<<<< HEAD
 	$U/_bigfile\
+=======
+	$U/_cowtest\
+	$U/_bcachetest\
+>>>>>>> 63a6353a0d1e1e8ebaa41f1b5df0caba6d1901eb
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
