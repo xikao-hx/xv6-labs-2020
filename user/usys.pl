@@ -39,3 +39,5 @@ entry("uptime");
 entry("trace");
 entry("sysinfo");
 entry("symlink");
+entry("mmap");
+entry("munmap");

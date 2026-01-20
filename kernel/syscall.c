@@ -120,6 +120,8 @@ extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
 extern uint64 sys_symlink(void);
+extern uint64 sys_mmap(void);
+extern uint64 sys_munmap(void);
 
 static char *syscalls_name[] = {
 [SYS_fork]    "fork",
@@ -199,6 +201,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_trace]   sys_trace,
 [SYS_sysinfo]   sys_sysinfo,
 [SYS_symlink]   sys_symlink,
+[SYS_mmap]      sys_mmap,
+[SYS_munmap]    sys_munmap,
 };
 
 // 尝试获取字符串参数，如果成功返回1，否则返回0

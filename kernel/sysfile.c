@@ -542,3 +542,180 @@ uint64 sys_symlink(void)
   end_op();
   return 0;
 }
+
+uint64 sys_mmap(void)
+{
+  uint64 addr;
+  int length;
+  int prot;
+  int flags;
+  int vfd;
+  int offset;
+  struct file *vfile;
+  uint64 err = 0xffffffffffffffff;
+  struct proc *p = myproc();
+  
+  // 获取系统调用参数
+  if (argaddr(0, &addr) < 0 || argint(1, &length) < 0 || argint(2, &prot) < 0 || 
+      argint(3, &flags) < 0 || argfd(4, &vfd, &vfile) < 0 || argint(5, &offset) < 0) {
+    return err;
+  }
+
+  // 实验中提示addr和offset为0，简化程序可能发生的情况
+  if (addr != 0 || offset != 0 || length < 0) {
+    return err;
+  }
+
+  // 文件不可写则不允许用于PROT_WRITE权限时映射为MAP_SHARED
+  if (vfile->writable == 0 && (prot & PROT_WRITE) != 0 && flags == MAP_SHARED) {
+    return err;
+  }
+
+  if (p->sz + length > MAXVA) {
+    return err;
+  }
+
+  // 遍历查找未使用的vma_area结构体
+  for (int i = 0; i < NVMA; i++) {
+    if (p->vmas[i].used == 0) {
+      p->vmas[i].used = 1;
+      p->vmas[i].addr = p->sz;  // 这个地方很重要
+      p->vmas[i].flags = flags;
+      p->vmas[i].length = length;
+      p->vmas[i].offset = offset;
+      p->vmas[i].prot = prot;
+      p->vmas[i].vfd = vfd;
+      p->vmas[i].vfile = vfile;
+      filedup(vfile);
+      p->sz += length;
+
+      return p->vmas[i].addr;
+    }
+  }
+  
+  return err;
+}
+
+int
+mmap_handler(uint64 va, uint64 scause)
+{
+  struct proc *p = myproc();
+  pagetable_t pagetable = p->pagetable;
+  int i = 0;
+  struct vma_area *vma;
+
+  // 根据地址查找属于哪一个vma
+  for (; i < NVMA; i ++) {
+    vma = &p->vmas[i];
+    if (vma->used && vma->addr <= va && va <= (vma->addr + vma->length - 1)) {
+      break;
+    }
+  }
+
+  if (i == NVMA) {
+    return -1;
+  }
+
+  // 分配物理地址，并读取文件内容
+  struct file *vfile = vma->vfile;
+  if (scause == 13 && vfile->readable == 0) return -1;
+  if (scause == 15 && vfile->writable == 0) return -1;
+
+  void * pa = kalloc();
+  if (pa == 0) {
+    printf("mmap_hander: kalloc err\n");
+    return -1;
+  }
+  memset(pa, 0, PGSIZE);
+
+  ilock(vfile->ip);
+  int offset = vma->offset + PGROUNDDOWN(va - vma->addr);
+  int readbytes = readi(vfile->ip, 0, (uint64)pa, offset, PGSIZE);
+  if (readbytes == 0) {
+    iunlock(vfile->ip);
+    kfree(pa);
+    return -1;
+  }
+  iunlock(vfile->ip);
+
+  // 添加页面映射
+  int pte_flags = PTE_U;
+  if (vma->prot & PROT_READ) pte_flags |= PTE_R;
+  if (vma->prot & PROT_WRITE) pte_flags |= PTE_W;
+  if (vma->prot & PROT_EXEC) pte_flags |= PTE_X;
+  if (mappages(pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, pte_flags) != 0) {
+    kfree(pa);
+    return -1;
+  }
+
+  // 同步修改进程的内核页表，这里要加上，否则有错误出现
+  upg2ukpg(pagetable, p->kpagetable, va, va + PGSIZE);
+
+  return 0;
+}
+
+extern uint64 sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+  struct proc *p = myproc();
+  struct vma_area *vma;
+  
+  int i = 0;
+
+  if (argaddr(0, &addr) < 0 || argint(1, &length) < 0) {
+    return -1;
+  }
+
+  // 根据提示：munmap的地址只能是起始和结束位置
+  for (; i < NVMA; i ++) {
+    vma = &p->vmas[i];
+    //uint64 addr = vma->addr;
+    if (vma->used && vma->length >= length) {
+      if (vma->addr == addr) {
+        vma->addr += length;
+        vma->length -= length;
+        break;
+      } else if ((vma->addr + vma->length) == (addr + length)) {
+        vma->length -= length;
+        break;
+      }
+    }
+  } 
+
+  if (i == NVMA) {
+    return -1;
+  }
+
+  // 写回文件系统
+  if (vma->vfile->writable && (vma->prot & PROT_WRITE) && vma->flags == MAP_SHARED) {
+    filewrite(vma->vfile, addr, length);
+  }
+
+  // 取消映射
+  uvmunmap(p->pagetable, PGROUNDDOWN(addr), length / PGSIZE, 1);   
+  ukvmdealloc(p->kpagetable, addr, vma->addr, 0);
+  
+  // 关闭文件
+  if (vma->length == 0) {
+    fileclose(vma->vfile);
+    vma->used = 0;
+  }
+
+  return 0;
+}
+
+int
+find_vma(struct proc *p, uint64 va)
+{
+  for (int i = 0; i < NVMA; i ++) {
+    struct vma_area *vma = &p->vmas[i];
+    if (vma->used) {
+      if (vma->addr <= va && va <= (vma->addr + vma->length - 1)) {
+        return 0;
+      }
+    }
+  }
+
+  return -1;
+}

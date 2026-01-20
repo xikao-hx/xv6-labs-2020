@@ -73,21 +73,26 @@ usertrap(void)
     uint64 va = r_stval();
     pagetable_t pagetable = p->pagetable;
 
-    // printf("va: %p\n", va);
-    if (va < p->sz) {
-      if (uvmcowpage(pagetable, va) == 0) {
-        if (uvmcowmalloc(pagetable, PGROUNDDOWN(va)) == 0) {
-          p->killed = 1;
-        }
-      } else if (PGROUNDUP(p->trapframe->sp) - 1 < va) {
-        if (uvmlazymalloc(pagetable, PGROUNDDOWN(va)) != 0) {
-          // printf("usertrap(): uvmlazymalloc\n");
-          p->killed = 1;
-        }
+    if (find_vma(p, va) == 0) {
+      if (mmap_handler(va, r_scause()) != 0) {
+        p->killed = 1;
       }
     } else {
-      printf("usertrap(): addr is illegal\n");
-      p->killed = 1;
+      if (va < p->sz) {
+        if (uvmcowpage(pagetable, va) == 0) {
+          if (uvmcowmalloc(pagetable, PGROUNDDOWN(va)) == 0) {
+            p->killed = 1;
+          }
+        } else if (PGROUNDUP(p->trapframe->sp) - 1 < va) {
+          if (uvmlazymalloc(pagetable, PGROUNDDOWN(va)) != 0) {
+            // printf("usertrap(): uvmlazymalloc\n");
+            p->killed = 1;
+          }
+        }
+      } else {
+        printf("usertrap(): addr is illegal\n");
+        p->killed = 1;
+      }
     }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

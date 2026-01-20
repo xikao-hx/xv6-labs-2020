@@ -164,8 +164,8 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_symlinktest\
-
+	$U/_mmaptest
+	
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
 	$U/_stats
