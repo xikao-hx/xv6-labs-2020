@@ -14,6 +14,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "symtab.h"
 
 volatile int panicked = 0;
 
@@ -145,6 +146,7 @@ vmprint(pagetable_t pagetable)
   printpage(pagetable, 0);
 }
 
+/*
 void
 backtrace(void) 
 {
@@ -154,7 +156,29 @@ backtrace(void)
   while((PGROUNDUP(fp) - PGROUNDDOWN(fp)) == PGSIZE) {
     uint64 ret_addr = *(uint64*)(fp - 8);
     printf("%p\n", ret_addr);
+    fp = *(uint64*)(fp - 16);   // fp-16是指针的地址，*是要取出地址对应的值
+  }
+}
+*/
+
+void backtrace(void) 
+{
+  uint64 fp = r_fp();
+  printf("backtrace:\n");
+
+  while ((PGROUNDUP(fp) - PGROUNDDOWN(fp)) == PGSIZE) {
+    uint64 ret_addr = *(uint64*)(fp - 8);
+    struct symtab_entry* sym = lookup_sym(ret_addr);
+    
+    if (sym) {
+      // 简化输出，不显示行号（因为都是0）
+      printf("  %s + %d\n", sym->name, ret_addr - sym->addr);
+    } else {
+      printf("  0x%d\n", ret_addr);
+    }
+
     fp = *(uint64*)(fp - 16);
+    if (fp == 0) break;
   }
 }
 

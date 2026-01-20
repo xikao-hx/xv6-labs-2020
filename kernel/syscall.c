@@ -253,7 +253,7 @@ void syscall_trace(struct proc *p, int num, uint64 *args)
   printf("(");
   // 根据系统调用类型特殊处理参数
   switch(num) {
-    case SYS_exec:
+    case SYS_exec: {
       // exec(path, argv[])
       // 第一个参数：路径字符串
       if(getstrarg(0, buf, sizeof(buf))) {
@@ -283,8 +283,9 @@ void syscall_trace(struct proc *p, int num, uint64 *args)
       }
       printf("]");
       break;
-      
-    case SYS_open:
+    }
+
+    case SYS_open: {
       // open(path, mode)
       if(getstrarg(0, buf, sizeof(buf))) {
         printf("\"%s\", %d", buf, (int)args[1]);
@@ -292,8 +293,9 @@ void syscall_trace(struct proc *p, int num, uint64 *args)
         printf("%p, %d", args[0], (int)args[1]);
       }
       break;
-      
-    case SYS_mknod:
+    }
+
+    case SYS_mknod: {
       // mknod(path, major, minor)
       if(getstrarg(0, buf, sizeof(buf))) {
         printf("\"%s\", %d, %d", buf, (int)args[1], (int)args[2]);
@@ -301,10 +303,11 @@ void syscall_trace(struct proc *p, int num, uint64 *args)
         printf("%p, %d, %d", args[0], (int)args[1], (int)args[2]);
       }
       break;
-      
+    }
+
     case SYS_unlink:
     case SYS_mkdir:
-    case SYS_chdir:
+    case SYS_chdir: {
       // 这些系统调用只有一个字符串参数
       if(getstrarg(0, buf, sizeof(buf))) {
         printf("\"%s\"", buf);
@@ -312,8 +315,9 @@ void syscall_trace(struct proc *p, int num, uint64 *args)
         printf("%p", args[0]);
       }
       break;
-      
-    case SYS_link:
+    }
+
+    case SYS_link: {
       // link(old, new)
       if(getstrarg(0, buf, sizeof(buf))) {
         printf("\"%s\", ", buf);
@@ -326,15 +330,17 @@ void syscall_trace(struct proc *p, int num, uint64 *args)
         printf("%p, %p", args[0], args[1]);
       }
       break;
-      
+    }
+
     case SYS_write:
-    case SYS_read:
+    case SYS_read: {
       // read/write(fd, buf, n)
       // 对于缓冲区，通常只显示地址而不打印内容
       printf("%d, %p, %d", (int)args[0], args[1], (int)args[2]);
       break;
-      
-    default:
+    }
+
+    default: {
       // 默认情况：按参数个数打印数字参数
       int arg_count = syscalls_argc[num];
       for(int i = 0; i < arg_count; i++) {
@@ -343,6 +349,7 @@ void syscall_trace(struct proc *p, int num, uint64 *args)
           printf(", ");
         }
       }
+    }
   }
   printf(")");
   printf(" -> %d\n", p->trapframe->a0);
