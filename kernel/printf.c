@@ -174,7 +174,7 @@ void backtrace(void)
       // 简化输出，不显示行号（因为都是0）
       printf("  %s + %d\n", sym->name, ret_addr - sym->addr);
     } else {
-      printf("  0x%d\n", ret_addr);
+      printf("  0x%p\n", ret_addr);
     }
 
     fp = *(uint64*)(fp - 16);
