@@ -171,8 +171,8 @@ void backtrace(void)
     struct symtab_entry* sym = lookup_sym(ret_addr);
     
     if (sym) {
-      // 简化输出，不显示行号（因为都是0）
-      printf("  %s + %d\n", sym->name, ret_addr - sym->addr);
+      // 无法获得行号
+      printf("函数名 + 偏移量：%s + %p\n", sym->name, ret_addr - sym->addr);
     } else {
       printf("  0x%p\n", ret_addr);
     }

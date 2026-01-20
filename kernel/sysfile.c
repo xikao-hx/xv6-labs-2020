@@ -643,7 +643,10 @@ mmap_handler(uint64 va, uint64 scause)
   if (vma->prot & PROT_READ) pte_flags |= PTE_R;
   if (vma->prot & PROT_WRITE) pte_flags |= PTE_W;
   if (vma->prot & PROT_EXEC) pte_flags |= PTE_X;
-  if (mappages(pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, pte_flags) != 0) {
+  // panic出现
+  // if (mappages(pagetable, PGROUNDDOWN(va), (uint64)pa, PGSIZE, pte_flags) != 0)  
+  
+  if (mappages(pagetable, PGROUNDDOWN(va), (uint64)pa, PGSIZE, pte_flags) != 0) {
     kfree(pa);
     return -1;
   }
