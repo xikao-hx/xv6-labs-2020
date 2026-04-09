@@ -102,7 +102,40 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
+
+  // 首先获取 E1000 锁（只能有一个线程处理网卡）
+  acquire(&e1000_lock);
+
+  // TX Descripotr Tail
+  uint32 idx = regs[E1000_TDT];
+  // 从 tx_ring 上读取网卡的 buf
+  struct tx_desc *desc = &tx_ring[idx];
+
+  // 如果该 buf 还未传输完，则说明 tx_ring 已满
+  if (!(desc->status & E1000_TXD_STAT_DD)) {
+    release(&e1000_lock);
+    return -1;
+  }
+
+  // 首先释放 idx 对应的 tx_mbufs 中的 mbuf
+  if (tx_mbufs[idx]) {
+    mbuffree(tx_mbufs[idx]);
+    tx_mbufs[idx] = 0;
+  }
+
+  // 将要发送的 mbuf 信息写到 tx_ring 中
+  desc->addr = (uint64) m->head;
+  desc->length = m->len;
+  // E1000_TXD_CMD_EOP 是结束符，代表这是一个完整的 packet
+  // E1000_TXD_CMD_RS 表示网卡应该在发送成功后将 status 设为 DD
+  desc->cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+  // 记录 mbuf ，在下次循环队列到这里时再释放
+  tx_mbufs[idx] = m;
+
+  // 循环队列尾指针加一
+  regs[E1000_TDT] = (regs[E1000_TDT] + 1) % TX_RING_SIZE;
   
+  release(&e1000_lock);
   return 0;
 }
 
@@ -115,8 +148,31 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+
+  // 从 rx_ring 中尽可能读取 packet
+  while (1) {
+    uint32 idx = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+    struct rx_desc *desc = &rx_ring[idx];
+    // 如果头指针的元素都工作完毕，则没有要接收的内容了
+    if (!(desc->status & E1000_RXD_STAT_DD)) return ;
+
+    // 把 desc 数据读给 mbuf
+    rx_mbufs[idx]->len = desc->length;
+    // 解包（传输给上层网络栈）
+    net_rx(rx_mbufs[idx]);
+
+    // 把 mbuf 置空（告诉 desc 下次把数据放在哪）
+    rx_mbufs[idx] = mbufalloc(0);
+    desc->addr = (uint64) rx_mbufs[idx]->head;
+    desc->status = 0;
+
+    // 修改队列尾指针
+    regs[E1000_RDT] = idx;
+  }
 }
 
+// 处理网卡中断
+// 也就是接收的逻辑
 void
 e1000_intr(void)
 {
