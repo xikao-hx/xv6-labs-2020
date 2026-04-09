@@ -236,6 +236,14 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
+# GDB = $(TOOLPREFIX)gdb
+GDB = gdb-multiarch
+gdb:
+	$(GDB) -ex "set confirm off" \
+		   -ex "set architecture riscv:rv64" \
+		   -ex "target remote 127.0.0.1:26000" \
+		   -ex "symbol-file kernel/kernel"
+
 ##
 ##  FOR testing lab grading script
 ##
