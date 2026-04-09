@@ -48,6 +48,12 @@ OBJS += \
 	$K/sprintf.o
 # endif
 
+OBJS += \
+	$K/e1000.o \
+	$K/net.o \
+	$K/sysnet.o \
+	$K/pci.o
+
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
 #TOOLPREFIX = 
@@ -94,6 +100,8 @@ endif
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
+
+CFLAGS += -DNET_TESTS_PORT=$(SERVERPORT)
 
 LDFLAGS = -z max-page-size=4096
 
@@ -165,7 +173,7 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_mmaptest
+	$U/_nettests \
 	
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
@@ -225,6 +233,9 @@ endif
 QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+# net device
+QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT)-:2000 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
+QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0,romfile=
 
 qemu: $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)
@@ -251,6 +262,19 @@ gdb:
 ifneq ($(V),@)
 GRADEFLAGS += -v
 endif
+
+# try to generate a unique port for the echo server
+SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
+
+server:
+	python3 server.py $(SERVERPORT)
+
+ping:
+	python3 ping.py $(FWDPORT)
+
+##
+##  FOR testing lab grading script
+##
 
 print-gdbport:
 	@echo $(GDBPORT)

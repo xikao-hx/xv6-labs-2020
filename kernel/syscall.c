@@ -122,6 +122,7 @@ extern uint64 sys_sysinfo(void);
 extern uint64 sys_symlink(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_munmap(void);
+extern uint64  sys_connect(void);
 
 static char *syscalls_name[] = {
 [SYS_fork]    "fork",
@@ -148,6 +149,7 @@ static char *syscalls_name[] = {
 [SYS_trace]   "trace",
 [SYS_sysinfo] "sysinfo",
 [SYS_symlink] "sys_symlink",
+[SYS_connect] "sys_connect",
 };
 
 static char syscalls_argc[] = {
@@ -174,6 +176,7 @@ static char syscalls_argc[] = {
 [SYS_close]   1,
 [SYS_trace]   1,
 [SYS_sysinfo] 1,
+[SYS_connect] 3,
 };
 
 static uint64 (*syscalls[])(void) = {
@@ -203,6 +206,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_symlink]   sys_symlink,
 [SYS_mmap]      sys_mmap,
 [SYS_munmap]    sys_munmap,
+[SYS_connect]    sys_connect,
 };
 
 // 尝试获取字符串参数，如果成功返回1，否则返回0

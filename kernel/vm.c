@@ -32,6 +32,12 @@ kvminit()
   // virtio mmio disk interface
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
+  // PCI-E ECAM (configuration space), for pci.c
+  kvmmap(0x30000000L, 0x30000000L, 0x10000000, PTE_R | PTE_W);
+
+  // pci.c maps the e1000's registers here.
+  kvmmap(0x40000000L, 0x40000000L, 0x20000, PTE_R | PTE_W);
+
   // CLINT
   kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
@@ -57,6 +63,8 @@ ukvminit(void)
 
   ukvmmap(pagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
   ukvmmap(pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  ukvmmap(pagetable,0x30000000L, 0x30000000L, 0x10000000, PTE_R | PTE_W);
+  ukvmmap(pagetable,0x40000000L, 0x40000000L, 0x20000, PTE_R | PTE_W);
   ukvmmap(pagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
   ukvmmap(pagetable, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
   ukvmmap(pagetable, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
@@ -236,6 +244,8 @@ ukvmunmap(pagetable_t pagetable)
 {
   uvmunmap(pagetable, UART0, PGSIZE / PGSIZE, 0);
   uvmunmap(pagetable, VIRTIO0, PGSIZE / PGSIZE, 0);
+  uvmunmap(pagetable,0x30000000L, 0x10000000 / PGSIZE, 0);
+  uvmunmap(pagetable,0x40000000L, 0x20000 / PGSIZE, 0);
   uvmunmap(pagetable, PLIC, 0x400000 / PGSIZE, 0);
   uvmunmap(pagetable, KERNBASE, ((uint64)etext-KERNBASE) / PGSIZE, 0);
   uvmunmap(pagetable, (uint64)etext, (PHYSTOP-(uint64)etext) / PGSIZE, 0);

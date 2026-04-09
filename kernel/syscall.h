@@ -25,3 +25,4 @@
 #define SYS_symlink  24
 #define SYS_mmap  25
 #define SYS_munmap 26
+#define SYS_connect 27

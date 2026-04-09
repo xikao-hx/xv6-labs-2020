@@ -41,3 +41,4 @@ entry("sysinfo");
 entry("symlink");
 entry("mmap");
 entry("munmap");
+entry("connect");
